@@ -1,5 +1,6 @@
-from collections import Counter
+from feedback import GREEN, YELLOW, normalize_word, score_guess
 from word_bank import WordBank
+
 
 class WordleGame:
     GREEN = '\033[92m'
@@ -7,46 +8,59 @@ class WordleGame:
     GRAY = '\033[90m'
     RESET = '\033[0m'
 
-    def __init__(self, word_file_path="words_generated.txt", max_guesses: int =6):
-        self.word_bank = WordBank(word_file_path)
-        self.secret_word = self.word_bank.get_random_word()
+    def __init__(
+        self,
+        word_file_path: str | None = None,
+        max_guesses: int = 6,
+        secret_word: str | None = None,
+        word_bank: WordBank | None = None,
+        use_color: bool = True,
+    ):
+        if max_guesses < 1:
+            raise ValueError("max_guesses must be at least 1.")
+
+        self.word_bank = word_bank or WordBank(word_file_path)
+        self.secret_word = (
+            normalize_word(secret_word, field_name="secret word")
+            if secret_word
+            else self.word_bank.get_random_word()
+        )
         self.max_guesses = max_guesses
         self.guesses_left = max_guesses
         self.guesses = []
         self.is_won = False
         self.is_lost = False
+        self.use_color = use_color
 
     def _get_user_guess(self) -> str:
         while True:
-            guess = input("Enter your guess: ").strip().upper()
-            if len(guess) != 5:
-                print("Invalid guess. Please enter a 5-letter word.")
-            elif not guess.isalpha():
-                print("Invalid guess. Please use only letters.")
-            else:
-                return guess
+            guess = input("Enter your guess: ")
+            try:
+                return normalize_word(guess, field_name="guess")
+            except ValueError as error:
+                print(f"Invalid guess. {error}")
 
     def _process_guess(self, guess: str):
-        feedback = [''] * 5
-        secret_word_counts = Counter(self.secret_word)
+        normalized_guess = normalize_word(guess, field_name="guess")
+        feedback = score_guess(normalized_guess, self.secret_word)
 
-        for i, letter in enumerate(guess):
-            if letter == self.secret_word[i]:
-                feedback[i] = 'GREEN'
-                secret_word_counts[letter] -= 1
-
-        for i, letter in enumerate(guess):
-            if feedback[i] == '': # Not already marked as GREEN
-                if secret_word_counts[letter] > 0:
-                    feedback[i] = 'YELLOW'
-                    secret_word_counts[letter] -= 1
-                else:
-                    feedback[i] = 'GRAY'
-        
-        self.guesses.append((guess, feedback))
+        self.guesses.append((normalized_guess, feedback))
         self.guesses_left -= 1
-        if guess == self.secret_word:
+        if normalized_guess == self.secret_word:
             self.is_won = True
+        elif self.guesses_left == 0:
+            self.is_lost = True
+
+        return feedback
+
+    def _format_letter(self, letter: str, feedback: str) -> str:
+        if not self.use_color:
+            return letter
+        if feedback == GREEN:
+            return f"{self.GREEN}{letter}{self.RESET}"
+        if feedback == YELLOW:
+            return f"{self.YELLOW}{letter}{self.RESET}"
+        return f"{self.GRAY}{letter}{self.RESET}"
             
     def _display_board(self):
 
@@ -54,12 +68,7 @@ class WordleGame:
         for guess, feedback in self.guesses:
             colored_guess = ""
             for i, letter in enumerate(guess):
-                if feedback[i] == 'GREEN':
-                    colored_guess += f"{self.GREEN}{letter}{self.RESET} "
-                elif feedback[i] == 'YELLOW':
-                    colored_guess += f"{self.YELLOW}{letter}{self.RESET} "
-                else:
-                    colored_guess += f"{self.GRAY}{letter}{self.RESET} "
+                colored_guess += f"{self._format_letter(letter, feedback[i])} "
             print(colored_guess.strip())
 
         for _ in range(self.guesses_left):
@@ -76,7 +85,10 @@ class WordleGame:
 
         self._display_board()
         if self.is_won:
-            print(f"{self.GREEN}Congratulations! You guessed the word: {self.secret_word}{self.RESET}")
+            message = f"Congratulations! You guessed the word: {self.secret_word}"
+            if self.use_color:
+                message = f"{self.GREEN}{message}{self.RESET}"
+            print(message)
         else:
             print(f"Sorry, you ran out of guesses. The word was: {self.secret_word}")
 

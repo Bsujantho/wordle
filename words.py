@@ -1,14 +1,28 @@
+from pathlib import Path
+
 import nltk
-nltk.download('words')
-from nltk.corpus import words
 
-five_letter_words = sorted(list(set(
-    [word.upper() for word in words.words() if len(word) == 5]
-)))
+OUTPUT_FILE = Path(__file__).with_name("words.txt")
 
-# Write the words to a file
-with open('words_generated.txt', 'w') as f:
-    for word in five_letter_words:
-        f.write(f"{word}\n")
 
-print(f"Generated a file with {len(five_letter_words)} words.")
+def main() -> None:
+    nltk.download("words", quiet=True)
+    from nltk.corpus import words
+
+    five_letter_words = sorted(
+        {
+            word.upper()
+            for word in words.words()
+            if len(word) == 5 and word.isalpha()
+        }
+    )
+
+    with OUTPUT_FILE.open("w", encoding="utf-8") as file:
+        for word in five_letter_words:
+            file.write(f"{word}\n")
+
+    print(f"Generated {OUTPUT_FILE} with {len(five_letter_words)} words.")
+
+
+if __name__ == "__main__":
+    main()
